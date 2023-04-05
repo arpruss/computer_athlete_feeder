@@ -1,9 +1,11 @@
 import simplepyble
 import time
 import struct
-import wiiuse
+import wiiuse # https://github.com/arpruss/pywiiuse
 from threading import Thread,Event
+import os
 
+WINDOWS = True
 GAMEPAD = True
 
 if GAMEPAD:
@@ -201,6 +203,8 @@ outputThread = Thread(target=emitter)
 outputThread.start()
     
 print("Running!")   
+if WINDOWS:
+    os.system('start /B c:\\gog\\dosbox\\dosbox -c "mount c \\gog\\athlete" -c c:\\s1.bat')
 while True:
     if wiimotes[0][0].event == wiiuse.DISCONNECT or wiimotes[0][0].event == wiiuse.UNEXPECTED_DISCONNECT:
         print("Wiimote disconnected")
