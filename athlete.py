@@ -164,6 +164,7 @@ def connectPeripheral():
             time.sleep(1)
             
 def connectWiimote():
+    launchedDolphin = False
     while True:
         print("Looking for wiimote")
         found = wiiuse.find(wiimotes, 1, 3)
@@ -175,7 +176,10 @@ def connectWiimote():
                 break
             print("Can't connect")
             time.sleep(1)
-        time.sleep(4)
+        else:
+            if WINDOWS and not launchedDolphin:
+                
+            time.sleep(4)
             
 
 adapter = simplepyble.Adapter.get_adapters()[0]
