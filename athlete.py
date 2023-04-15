@@ -119,6 +119,8 @@ def measurement(data):
             if prevCrankRev is not None:
                 count = (crankRev - prevCrankRev) & 0xFFFF
                 for i in range(count):
+                    if i:
+                        buffer.append((WAIT,0.1))
                     buffer.append((DOWN,'5'))
                     buffer.append((WAIT,0.1))
                     buffer.append((UP,'5'))
