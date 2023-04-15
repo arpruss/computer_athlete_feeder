@@ -1,16 +1,23 @@
-import simplepyble
+WIFI = False
+WINDOWS = True
+GAMEPAD = True
+
+if WIFI:
+    import socket
+else:
+    import simplepyble
 import time
 import struct
 import wiiuse # https://github.com/arpruss/pywiiuse
 from threading import Thread,Event
 import os
-
-WINDOWS = True
-GAMEPAD = True
-
 if GAMEPAD:
     import vgamepad as vg
 from pynput.keyboard import Key, Controller
+
+HOST = "192.168.1.246"
+PORT = 8765
+
 
 
 def uuid16(n):
@@ -23,7 +30,7 @@ DOWN = 1
 UP = 0
 WAIT = 2
 
-peripheral = None
+bleBike = None
 prevCrankRev = None
 buffer = []
 haveOutput = Event()
@@ -105,8 +112,23 @@ def wiimoteEvent(w):
                 buffer.append((DOWN, buttonMap[b]))
                 haveOutput.set()
 
-def measurement(data):
+def processCrankRev(crankRev):                
     global prevCrankRev
+    if prevCrankRev is not None:
+        count = (crankRev - prevCrankRev) & 0xFFFF
+        try:
+            for i in range(count):
+                if i:
+                    buffer.append((WAIT,0.1))
+                buffer.append((DOWN,'5'))
+                buffer.append((WAIT,0.1))
+                buffer.append((UP,'5'))
+                haveOutput.set()
+        except Exception as e:
+            print(e)
+    prevCrankRev = crankRev                
+
+def measurement(data):
     flags = data[0]
     if flags & 1:
         # skip wheel rev
@@ -115,43 +137,48 @@ def measurement(data):
         data = data[1:]
     if flags & 2:
         crankRev,crankTime = struct.unpack('HH', data)
-        try:
-            if prevCrankRev is not None:
-                count = (crankRev - prevCrankRev) & 0xFFFF
-                for i in range(count):
-                    if i:
-                        buffer.append((WAIT,0.1))
-                    buffer.append((DOWN,'5'))
-                    buffer.append((WAIT,0.1))
-                    buffer.append((UP,'5'))
-                    haveOutput.set()
-            prevCrankRev = crankRev
-        except Exception as e:
-            print(e)
+        processCrankRev(crankRev)
 
 def found(p):
-    global peripheral
+    global bleBike
     print("Found",p.identifier(),p.address())
     try:
         for s in p.services():
             if s.uuid() == CADENCE_SERVICE:
                 print("Has cadence service!")
-                peripheral = p
+                bleBike = p
                 return
     except:
         print("Error scanning services")
         
 
-def connectPeripheral(): 
+            
+def connectBLE():
+    global bleBike
+    
+    adapter = simplepyble.Adapter.get_adapters()[0]
+    print("Selected adapter:", adapter.identifier(), adapter.address())
+
+    adapter.set_callback_on_scan_found(found)
+    adapter.scan_start()
+
+    while not bleBike:
+        time.sleep(0.2)
+        
+    adapter.scan_stop()
+
+    if bleBike is None:
+        raise Exception("Cannot find "+CADENCE_SERVICE)    
+        
     connected = False
     while True:
         try:
             connected = False
-            print("Connecting to",peripheral.address())
-            peripheral.connect() 
+            print("Connecting to",bleBike.address())
+            bleBike.connect() 
             connected = True
             print("Subscribing to notification")
-            contents = peripheral.notify(CADENCE_SERVICE, CSC_MEASUREMENT, measurement)
+            contents = bleBike.notify(CADENCE_SERVICE, CSC_MEASUREMENT, measurement)
             print("Subscribed!")
             break
         except Exception as e:
@@ -160,13 +187,29 @@ def connectPeripheral():
             else:
                 print("Error subscribing", e)
                 try:
-                    peripheral.disconnect()
+                    bleBike.disconnect()
                 except:
                     pass
             time.sleep(1)
             
+def processWiFi(socket):
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.connect((HOST, PORT))    
+        print("Socket connected")
+
+        for line in socket.makefile:
+            if line.startswith("rotation "):
+                data = split(line)
+                try:
+                    processCrankRev(line[2])
+                except Exception as e:
+                    print(e)
+            
+def connectWiFi():
+    t = threading.Thread(target=procssWiFi)
+    t.start()            
+    
 def connectWiimote():
-    launchedDolphin = False
     while True:
         print("Looking for wiimote")
         found = wiiuse.find(wiimotes, 1, 3)
@@ -179,27 +222,12 @@ def connectWiimote():
             print("Can't connect")
             time.sleep(1)
         else:
-            if WINDOWS and not launchedDolphin:
-                
-            time.sleep(4)
-            
+            time.sleep(4)            
 
-adapter = simplepyble.Adapter.get_adapters()[0]
-
-print("Selected adapter::", adapter.identifier(), adapter.address())
-
-adapter.set_callback_on_scan_found(found)
-adapter.scan_start()
-
-while not peripheral:
-    time.sleep(0.2)
-    
-adapter.scan_stop()
-
-if peripheral is None:
-    raise Exception("Cannot find "+CADENCE_SERVICE)
-
-connectPeripheral()
+if WIFI:
+    connectWiFi()
+else:
+    connectBLE()
     
 wiimotes = wiiuse.init(1)
 connectWiimote()
@@ -221,13 +249,14 @@ while True:
         wiimoteEvent(w)
     else:
         time.sleep(0.03)
-    if not peripheral.is_connected():
+    if not WIFI and not bleBike.is_connected():
         print("Cadence disconnected")
         try:
-            peripheral.disconnect()
+            bleBike.disconnect()
         except:
             pass
         print("Reconnecting")
-        connectPeripheral()
+        connectBLE()
 
-peripheral.disconnect()
+if not WIFI:
+    bleBike.disconnect()
