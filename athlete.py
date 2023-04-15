@@ -1,6 +1,6 @@
-WIFI = False
-WINDOWS = True
-GAMEPAD = True
+WIFI = True
+WINDOWS = False
+GAMEPAD = False
 
 if WIFI:
     import socket
@@ -192,7 +192,7 @@ def connectBLE():
                     pass
             time.sleep(1)
             
-def processWiFi(socket):
+def processWiFi():
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         s.connect((HOST, PORT))    
         print("Socket connected")
@@ -206,7 +206,7 @@ def processWiFi(socket):
                     print(e)
             
 def connectWiFi():
-    t = threading.Thread(target=procssWiFi)
+    t = Thread(target=processWiFi)
     t.start()            
     
 def connectWiimote():
