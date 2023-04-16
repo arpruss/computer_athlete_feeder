@@ -1,24 +1,27 @@
-WIFI = True
-WINDOWS = False
-GAMEPAD = False
+import os
+try:
+  import simplepyble
+  WIFI = False
+except:
+  print("falling back to WiFi")
+  import socket
+  WIFI = True
+WINDOWS = os.name == 'nt'
+try:
+  import vgamepad as vg
+  GAMEPAD = True
+except:
+  print("falling back to pynput")
+  GAMEPAD = False
 
-if WIFI:
-    import socket
-else:
-    import simplepyble
 import time
 import struct
 import wiiuse # https://github.com/arpruss/pywiiuse
 from threading import Thread,Event
-import os
-if GAMEPAD:
-    import vgamepad as vg
 from pynput.keyboard import Key, Controller
 
 HOST = "192.168.1.246"
 PORT = 8765
-
-
 
 def uuid16(n):
     return "0000%04x-0000-1000-8000-00805f9b34fb" % n
