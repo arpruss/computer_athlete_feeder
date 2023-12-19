@@ -197,6 +197,7 @@ def connectBLE():
             
 def processWiFi():
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        print("Trying to connect")
         s.connect((HOST, PORT))    
         print("Socket connected")
 
